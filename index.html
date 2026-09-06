@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0a0c10" />
+<title>Material Sandbox</title>
+<style>
+  :root{
+    --bg0:#0a0c10; --bg1:#12161d; --panel:#161b24; --panel2:#1d2430; --panel3:#242c39;
+    --ink:#e7ecf3; --muted:#8b97a7; --line:#26303d;
+    --sand:#e9c88a; --water:#4f9dff; --concrete:#a9adb4; --acid:#7dff5a; --wall:#6a7485;
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none}
+  html,body{height:100%; overflow:hidden; overscroll-behavior:none}
+  body{
+    margin:0; padding:var(--safe-top) 0 var(--safe-bottom) 0;
+    color:var(--ink);
+    font:14px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(180deg,#0d1017,#0a0c10);
+    display:flex; flex-direction:column; touch-action:auto;
+  }
+
+  /* ---------- Header ---------- */
+  .topbar{
+    flex:0 0 auto; display:flex; align-items:center; gap:10px;
+    padding:10px 12px 8px; background:rgba(18,22,29,.9);
+    border-bottom:1px solid var(--line); backdrop-filter:blur(8px);
+  }
+  .brand{display:flex; align-items:center; gap:8px; min-width:0}
+  .logo{width:30px;height:30px;flex:0 0 auto;border-radius:8px;
+    background:conic-gradient(from 210deg,var(--sand),var(--water),var(--acid),var(--concrete),var(--sand));
+    box-shadow:0 0 14px rgba(79,157,255,.4), inset 0 0 0 1px rgba(255,255,255,.2)}
+  .title{font-weight:800; font-size:16px; letter-spacing:.3px; white-space:nowrap}
+  .title small{display:block; font-size:9.5px; font-weight:500; color:var(--muted); letter-spacing:.6px; text-transform:uppercase}
+  .hud{margin-left:auto; display:flex; gap:12px; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums}
+  .hud b{color:var(--ink); font-weight:700}
+
+  /* ---------- Canvas stage ---------- */
+  .stage{flex:1 1 auto; position:relative; display:flex; align-items:center; justify-content:center; min-height:0; padding:6px; touch-action:none}
+  .wrap{position:relative; box-shadow:0 12px 40px rgba(0,0,0,.55); border-radius:8px; overflow:hidden; flex:0 0 auto; touch-action:none}
+  canvas{display:block; image-rendering:pixelated; image-rendering:crisp-edges; touch-action:none; background:#050608}
+  .brushghost{position:absolute; pointer-events:none; border:1.5px solid rgba(255,255,255,.5); border-radius:50%; box-shadow:0 0 0 1px rgba(0,0,0,.4); display:none; mix-blend-mode:difference}
+
+  /* ---------- Control dock ---------- */
+  .dock{
+    flex:0 0 auto; background:rgba(16,20,27,.96); border-top:1px solid var(--line);
+    padding:6px 8px calc(8px + var(--safe-bottom)); backdrop-filter:blur(10px);
+    touch-action:auto;
+  }
+  /* Materials row */
+  .matbar{display:flex; gap:6px; touch-action:auto}
+  .mat{
+    flex:1 1 auto; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:9px 4px 7px; border-radius:12px; background:var(--panel2);
+    border:1px solid var(--line); color:var(--ink); font-weight:600; font-size:12px;
+    transition:transform .08s, background .15s, border-color .15s; cursor:pointer;
+    touch-action: manipulation;
+  }
+  .mat:active{transform:scale(.94)}
+  .mat .sw{width:22px;height:22px;border-radius:6px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);transition:transform .12s}
+  .mat .lb{line-height:1;letter-spacing:.2px}
+  .mat.active{background:var(--panel3); border-color:var(--ac,transparent); box-shadow:0 0 0 1px var(--ac,transparent) inset, 0 4px 14px rgba(0,0,0,.4)}
+  .mat.active .sw{transform:scale(1.08)}
+  .mat.erase{background:#11151c}
+  .mat.erase.active{background:#222; border-color:#555}
+  .mat.erase .sw{
+    background:
+      linear-gradient(#11151c,#11151c),
+      conic-gradient(from 0deg,#555 0 1turn);
+    background:linear-gradient(135deg,transparent 45%,#555 45%,#555 55%,transparent 55%),
+              linear-gradient(45deg,transparent 45%,#555 45%,#555 55%,transparent 55%);
+  }
+
+  /* Secondary controls */
+  .subrow{display:flex; gap:6px; margin-top:6px}
+  .ctrl{
+    flex:1 1 auto; display:flex; align-items:center; justify-content:center; gap:7px;
+    height:46px; border-radius:12px; background:var(--panel2); border:1px solid var(--line);
+    color:var(--ink); font-weight:700; font-size:15px; cursor:pointer; transition:transform .08s, background .12s;
+    touch-action: manipulation;
+  }
+  .ctrl .ic{font-size:18px; line-height:1}
+  .ctrl .tx{font-size:12.5px; letter-spacing:.2px}
+  .ctrl:active{transform:scale(.96)}
+  .ctrl.play{background:#223045; border-color:#3b6ea5}
+  .ctrl.play.on{background:#1a2430}
+  .ctrl.brushctl{max-width:140px; flex:1 1 120px}
+  .ctrl.brushctl .tx{width:16px; text-align:center}
+  .ctrl.go{background:var(--panel3)}
+  .ctrl.go.ghost{background:#2a1510; border-color:#7a3020}
+  .ctrl.go.ghost .ic{color:#ff8a6b}
+  @media (max-width:380px){ .ctrl .tx{display:none} .ctrl{height:44px} }
+</style>
+</head>
+<body>
+  <!-- top bar -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div class="title">Material Sandbox<small>Sand · Acid · Concrete · Water</small></div>
+    </div>
+    <div class="hud">
+      <div><b id="fps">60</b> fps</div>
+      <div><b id="parts">0</b> parts</div>
+    </div>
+  </div>
+
+  <!-- canvas -->
+  <div class="stage">
+    <div class="wrap">
+      <canvas id="c"></canvas>
+      <div class="brushghost" id="ghost"></div>
+    </div>
+  </div>
+
+  <!-- control dock -->
+  <div class="dock">
+    <div class="matbar" id="matbar">
+      <button class="mat active" data-id="1"><span class="sw" style="background:rgb(233,200,150)"></span><span class="lb">Sand</span></button>
+      <button class="mat" data-id="2"><span class="sw" style="background:rgb(79,157,255)"></span><span class="lb">Water</span></button>
+      <button class="mat" data-id="3"><span class="sw" style="background:rgb(169,173,180)"></span><span class="lb">Concrete</span></button>
+      <button class="mat" data-id="4"><span class="sw" style="background:rgb(125,255,90)"></span><span class="lb">Acid</span></button>
+      <button class="mat" data-id="5"><span class="sw" style="background:rgb(106,116,133)"></span><span class="lb">Wall</span></button>
+      <button class="mat erase" data-id="0"><span class="sw"></span><span class="lb">Erase</span></button>
+    </div>
+    <div class="subrow">
+      <button class="ctrl brushctl" id="brushminus" aria-label="Smaller brush"><span class="ic">−</span><span class="tx">Brush</span></button>
+      <button class="ctrl play on" id="play"><span class="ic">❚❚</span><span class="tx">Pause</span></button>
+      <button class="ctrl go" id="demo"><span class="ic">▶</span><span class="tx">Demo</span></button>
+      <button class="ctrl go ghost" id="clear"><span class="ic">🗑</span><span class="tx">Clear</span></button>
+    </div>
+  </div>
+
+<script>
+"use strict";
+/* ---------- Material codes ---------- */
+const EMPTY=0, SAND=1, WATER=2, CONCRETE=3, ACID=4, WALL=5, SOLID=6;
+const MAT_COLORS = {
+  [SAND]:[233,200,150],[WATER]:[79,157,255],[CONCRETE]:[169,173,180],
+  [ACID]:[125,255,90],[WALL]:[106,116,133]
+};
+const MAT_CSS = {
+  1:'#e9c88a', 2:'#4f9dff', 3:'#a9adb4', 4:'#7dff5a', 5:'#6a7485', 0:'#555'
+};
+
+/* ---------- Grid ---------- */
+const cv = document.getElementById("c");
+const ctx = cv.getContext("2d", {alpha:false});
+const off = document.createElement("canvas");
+const octx = off.getContext("2d", {alpha:false});
+const ghost = document.getElementById("ghost");
+let W=0, H=0, SCALE=1;
+
+let mat, moved, hyd, acid, noise;
+let cur = SAND;
+let brush = 5;
+let playing = true;
+let speed = 3;
+let frame = 0;
+let seed = 123456789;
+function rnd(){ seed=(seed*1664525+1013904223)>>>0; return seed/4294967296; }
+function rndi(a,b){ return a + Math.floor(rnd()*(b-a+1)); }
+
+function resize(){
+  const stage = document.querySelector(".stage");
+  const availW = stage.clientWidth - 16;
+  const availH = stage.clientHeight - 16;
+  // target ~4px cells, capped so it looks good
+  const byW = Math.min(260, Math.max(90, Math.floor(availW/4)));
+  const byH = Math.min(180, Math.max(70, Math.floor(availH/4)));
+  W = Math.max(90, Math.min(byW, Math.floor(availW/4)));
+  H = Math.max(70, Math.min(byH, Math.floor(availH/4)));
+
+  SCALE = Math.floor(Math.min(availW/W, availH/H));
+  SCALE = Math.max(2, Math.min(SCALE, 10));
+
+  cv.width = W; cv.height = H;
+  off.width = W; off.height = H;
+  // create the image buffer now that W and H are known (was at load time when W=0, which crashed the whole script)
+  imgData = octx.createImageData(W, H);
+  d = imgData.data;
+  const wrap = document.querySelector(".wrap");
+  wrap.style.width = (W*SCALE)+"px";
+  wrap.style.height = (H*SCALE)+"px";
+  cv.style.width = (W*SCALE)+"px";
+  cv.style.height = (H*SCALE)+"px";
+
+  mat   = new Int8Array(W*H);
+  moved = new Uint8Array(W*H);
+  hyd   = new Float32Array(W*H);
+  acid  = new Float32Array(W*H);
+  noise = new Float32Array(W*H);
+  for (let i=0;i<W*H;i++) noise[i]=rnd();
+}
+
+function idx(x,y){ return y*W+x; }
+function inb(x,y){ return x>=0&&x<W&&y>=0&&y<H; }
+
+/* ---------- Simulation ---------- */
+function setEmpty(i){ mat[i]=EMPTY; moved[i]=1; hyd[i]=0; acid[i]=0; }
+
+function drop(from,to){
+  mat[to]=mat[from]; mat[from]=EMPTY;
+  hyd[to]=hyd[from]; hyd[from]=0; acid[to]=acid[from]; acid[from]=0;
+  moved[from]=1; moved[to]=1;
+}
+
+function trySand(x,y,i){
+  if (y+1>=H){ moved[i]=1; return; }
+  const below = mat[i+W];
+  if (below===EMPTY){ drop(i,i+W); return; }
+  if (below===WATER||below===ACID){ swap(i,i+W); return; }
+  const d1 = rnd()<0.5?1:-1, d2=-d1;
+  for (const dx of [d1,d2]){
+    if (x+dx<0||x+dx>=W) continue;
+    const di = i+W+dx;
+    if (mat[di]===EMPTY){ drop(i,di); return; }
+    if (mat[di]===WATER||mat[di]===ACID){ swap(i,di); return; }
+  }
+}
+
+function tryConcrete(x,y,i){
+  if (hyd[i]<1){
+    let nearWater=false;
+    if (inb(x-1,y)&&mat[idx(x-1,y)]===WATER) nearWater=true;
+    if (!nearWater&&inb(x+1,y)&&mat[idx(x+1,y)]===WATER) nearWater=true;
+    if (!nearWater&&mat[i]===CONCRETE&&y>0){ const u=mat[i-W]; if (u===WATER) nearWater=true; }
+    if (nearWater){
+      hyd[i]+=0.03;
+      if (rnd()<0.5){
+        let wx=x,wy=y;
+        if (rnd()<0.25){ wx=x-1; } else if (rnd()<0.25){ wx=x+1; } else if (rnd()<0.25){ wy=y-1; } else { wy=y+1; }
+        if (inb(wx,wy)&&mat[idx(wx,wy)]===WATER){ mat[idx(wx,wy)]=EMPTY; }
+      }
+      if (hyd[i]>=1){ mat[i]=SOLID; hyd[i]=1; }
+    } else if (hyd[i]>0){ hyd[i]=Math.max(0,hyd[i]-0.005); }
+  }
+  if (y+1>=H){ moved[i]=1; return; }
+  const below = mat[i+W];
+  if (below===EMPTY){ drop(i,i+W); return; }
+  if (below===WATER||below===ACID){ swap(i,i+W); return; }
+  const d1 = rnd()<0.5?1:-1, d2=-d1;
+  for (const dx of [d1,d2]){
+    if (x+dx<0||x+dx>=W) continue;
+    const di = i+W+dx;
+    if (mat[di]===EMPTY){ drop(i,di); return; }
+    if (mat[di]===WATER||mat[di]===ACID){ swap(i,di); return; }
+  }
+}
+
+function tryLiquid(x,y,i, isAcid){
+  if (y+1>=H){ moved[i]=1; return; }
+  const below = mat[i+W];
+  if (below===EMPTY){ drop(i,i+W); return; }
+  if (below===WATER||below===ACID){ /* keep */ } else return;
+  const d1 = rnd()<0.5?1:-1, d2=-d1;
+  for (const dx of [d1,d2]){
+    if (x+dx<0||x+dx>=W) continue;
+    const di = i+W+dx;
+    if (mat[di]===EMPTY){ drop(i,di); return; }
+  }
+  for (const dx of [d1,d2]){
+    if (x+dx<0||x+dx>=W) continue;
+    const di = i+dx;
+    if (mat[di]===EMPTY){ drop(i,di); return; }
+  }
+  moved[i]=1;
+}
+
+function tryAcid(x,y,i){
+  const str = acid[i];
+  const dirs=[[-1,0],[1,0],[0,-1],[0,1]];
+  for (let k=0;k<dirs.length;k++){
+    const dx=dirs[k][0], dy=dirs[k][1];
+    const nx=x+dx, ny=y+dy;
+    if (!inb(nx,ny)) continue;
+    const ni=idx(nx,ny);
+    const nm=mat[ni];
+    if (nm!==WALL && nm!==EMPTY && nm!==ACID){
+      if (str>0.06 && rnd()<0.025){
+        mat[ni]=EMPTY;
+        acid[i]-=0.06;
+      }
+    }
+  }
+  acid[i]-=0.003;
+  if (acid[i]<=0){ setEmpty(i); return; }
+  tryLiquid(x,y,i,true);
+}
+
+function swap(a,b){
+  const t=mat[a]; mat[a]=mat[b]; mat[b]=t;
+  const h=hyd[a]; hyd[a]=hyd[b]; hyd[b]=h;
+  const c=acid[a]; acid[a]=acid[b]; acid[b]=c;
+  moved[a]=1; moved[b]=1;
+}
+
+function tick(){
+  moved.fill(0);
+  for (let y=H-1;y>=0;y--){
+    const ltr = (y&1)===0;
+    for (let k=0;k<W;k++){
+      const x = ltr? k : W-1-k;
+      const i = y*W+x;
+      if (moved[i]) continue;
+      const m = mat[i];
+      if (m===EMPTY||m===WALL||m===SOLID) continue;
+      if (m===SAND) trySand(x,y,i);
+      else if (m===CONCRETE) tryConcrete(x,y,i);
+      else if (m===WATER) tryLiquid(x,y,i,false);
+      else if (m===ACID) tryAcid(x,y,i);
+    }
+  }
+  frame++;
+}
+
+/* ---------- Rendering ---------- */
+let imgData, d;
+
+function clamp255(v){ return v<0?0:(v>255?255:v); }
+
+function render(){
+  let parts=0;
+  const pulse = 0.75+0.25*Math.sin(frame*0.15);
+  for (let i=0;i<W*H;i++){
+    const p=i*4;
+    const m=mat[i];
+    if (m===EMPTY){ d[p]=0; d[p+1]=0; d[p+2]=0; d[p+3]=255; continue; }
+    parts++;
+    const n=noise[i];
+    let r,g,b;
+    const topEmpty = (i-W>=0) ? (mat[i-W]===EMPTY||mat[i-W]===ACID) : false;
+    const shadow = topEmpty?0.82:1.0;
+    if (m===SAND){
+      r=233+(n-0.5)*34; g=200+(n-0.5)*28; b=150+(n-0.5)*24;
+      if (n<0.08){ r*=0.7; g*=0.7; b*=0.7; }
+    } else if (m===WATER){
+      r=58+n*34; g=120+n*34; b=190+n*40;
+    } else if (m===CONCRETE){
+      const s=1-0.32*Math.min(1,hyd[i]);
+      r=168*s+(n-0.5)*16; g=172*s+(n-0.5)*16; b=178*s+(n-0.5)*16;
+    } else if (m===SOLID){
+      r=116+(n-0.5)*18; g=119+(n-0.5)*18; b=126+(n-0.5)*18;
+    } else if (m===WALL){
+      r=58+(n-0.5)*10; g=64+(n-0.5)*10; b=78+(n-0.5)*12;
+    } else if (m===ACID){
+      const f=pulse*(0.9+0.1*n);
+      r=90+f*40; g=255; b=80+f*50;
+    }
+    d[p]  =clamp255(r*shadow);
+    d[p+1]=clamp255(g*shadow);
+    d[p+2]=clamp255(b*shadow);
+    d[p+3]=255;
+  }
+  document.getElementById("parts").textContent = parts.toLocaleString();
+  octx.putImageData(imgData,0,0);
+  ctx.imageSmoothingEnabled=false;
+  ctx.fillStyle="#050608"; ctx.fillRect(0,0,cv.width,cv.height);
+  const grad=ctx.createLinearGradient(0,0,0,cv.height);
+  grad.addColorStop(0,"#0c0f15"); grad.addColorStop(1,"#070910");
+  ctx.drawImage(off,0,0,cv.width,cv.height);
+  ctx.globalCompositeOperation="source-atop";
+  ctx.fillStyle=grad; ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.globalCompositeOperation="source-over";
+}
+
+/* ---------- Interaction ---------- */
+function paint(px,py){
+  const gx=Math.floor(px/SCALE), gy=Math.floor(py/SCALE);
+  const r=brush;
+  const target = cur===EMPTY? EMPTY : cur;
+  for (let dy=-r;dy<=r;dy++){
+    for (let dx=-r;dx<=r;dx++){
+      if (dx*dx+dy*dy>r*r) continue;
+      const x=gx+dx, y=gy+dy;
+      if (!inb(x,y)) continue;
+      const i=idx(x,y);
+      if (target===EMPTY){ if (mat[i]!==WALL) setEmpty(i); continue; }
+      if (mat[i]===WALL) continue;
+      if ((target===SAND||target===CONCRETE||target===WALL) && mat[i]!==EMPTY) continue;
+      mat[i]=target;
+      if (target===CONCRETE) hyd[i]=0;
+      if (target===ACID) acid[i]=1;
+      moved[i]=1;
+    }
+  }
+}
+function updateGhost(x,y){
+  const r=brush*SCALE;
+  ghost.style.display="block";
+  ghost.style.left=((x*SCALE)-r)+"px";
+  ghost.style.top=((y*SCALE)-r)+"px";
+  ghost.style.width=(r*2)+"px";
+  ghost.style.height=(r*2)+"px";
+}
+function hideGhost(){ ghost.style.display="none"; }
+
+let painting=false;
+function canvasPos(e){
+  const rect=cv.getBoundingClientRect();
+  const t = (e.touches && e.touches[0]) || e;
+  const cx=(t.clientX)-rect.left;
+  const cy=(t.clientY)-rect.top;
+  return {x:cx,y:cy};
+}
+function paintHere(e){
+  e.preventDefault();
+  const p=canvasPos(e); paint(p.x,p.y);
+  updateGhost(Math.floor(p.x/SCALE), Math.floor(p.y/SCALE));
+}
+cv.addEventListener("pointerdown",e=>{ painting=true; paintHere(e); });
+cv.addEventListener("pointermove",e=>{ if(painting){ paintHere(e); } });
+window.addEventListener("pointerup",()=>{ painting=false; hideGhost(); });
+window.addEventListener("pointercancel",()=>{ painting=false; hideGhost(); });
+// keep ghost hidden when not painting
+cv.addEventListener("pointerleave",()=>{ if(!painting) hideGhost(); });
+
+/* ---------- UI wiring ---------- */
+function selectMat(id){
+  cur=id;
+  document.querySelectorAll(".mat").forEach(b=>{
+    b.classList.toggle("active", +b.dataset.id===id);
+  });
+  if (id===1){ document.documentElement.style.setProperty('--accent','#e9c88a'); }
+}
+document.querySelectorAll(".mat").forEach(btn=>{
+  btn.addEventListener("click",()=>{ selectMat(+btn.dataset.id); });
+});
+
+const playBtn=document.getElementById("play");
+playBtn.addEventListener("click",()=>{
+  playing=!playing;
+  playBtn.classList.toggle("on",playing);
+  playBtn.querySelector(".tx").textContent = playing?"Pause":"Play";
+  playBtn.querySelector(".ic").textContent = playing?"❚❚":"▶";
+});
+
+document.getElementById("clear").addEventListener("click",()=>{
+  mat.fill(0); hyd.fill(0); acid.fill(0);
+});
+document.getElementById("demo").addEventListener("click",runDemo);
+
+document.getElementById("brushminus").addEventListener("click",()=>{
+  brush=Math.max(1,brush-1); syncBrushUI();
+});
+// add a dedicated brush-size button by injecting into the subrow
+let brushPlusEl = document.getElementById("brushplus");
+if(!brushPlusEl){
+  brushPlusEl = document.createElement("button");
+  brushPlusEl.className="ctrl brushctl";
+  brushPlusEl.id="brushplus";
+  brushPlusEl.setAttribute("aria-label","Larger brush");
+  brushPlusEl.innerHTML='<span class="ic">+</span><span class="tx">Brush</span>';
+  document.querySelector(".subrow").insertBefore(brushPlusEl, document.getElementById("play"));
+  brushPlusEl.addEventListener("click",()=>{
+    brush=Math.min(16,brush+1); syncBrushUI();
+  });
+}
+function syncBrushUI(){
+  brushPlusEl.querySelector(".tx").textContent = "Brush "+brush;
+}
+syncBrushUI();
+
+/* ---------- Keyboard fallback ---------- */
+document.addEventListener("keydown",e=>{
+  if (e.target.tagName==="INPUT"||e.target.tagName==="BUTTON") return;
+  if (e.key==="1") selectMat(SAND); else if (e.key==="2") selectMat(WATER);
+  else if (e.key==="3") selectMat(CONCRETE); else if (e.key==="4") selectMat(ACID);
+  else if (e.key==="5") selectMat(WALL);
+  else if (e.key.toLowerCase()==="e") selectMat(EMPTY);
+  else if (e.code==="Space"){ e.preventDefault(); playBtn.click(); }
+});
+
+/* ---------- Demo scene ---------- */
+function runDemo(){
+  mat.fill(0); hyd.fill(0); acid.fill(0);
+  const baseY=H-8;
+  for (let x=Math.floor(W*0.25); x<=Math.floor(W*0.75); x++){ mat[idx(x,baseY)]=WALL; }
+  for (let y=baseY-14; y<=baseY-1; y++){ mat[idx(Math.floor(W*0.25),y)]=WALL; mat[idx(Math.floor(W*0.75),y)]=WALL; }
+  for (let x=Math.floor(W*0.26); x<Math.floor(W*0.75); x++)
+    for (let y=baseY-13; y<=baseY-2; y++){ if (rnd()<0.85) mat[idx(x,y)]=WATER; }
+  for (let k=0;k<160;k++){
+    const x=Math.floor(W*0.12)+rndi(-4,4), y=Math.floor(H*0.2)+rndi(-2,6);
+    if (inb(x,y)&&mat[idx(x,y)]===EMPTY) mat[idx(x,y)]=SAND;
+  }
+  for (let k=0;k<140;k++){
+    const x=Math.floor(W*0.78)+rndi(-5,4), y=Math.floor(H*0.25)+rndi(-2,6);
+    if (inb(x,y)&&mat[idx(x,y)]===EMPTY) mat[idx(x,y)]=CONCRETE;
+  }
+  for (let k=0;k<30;k++){ const x=Math.floor(W*0.5)+rndi(-3,3), y=Math.floor(H*0.12)+rndi(0,3); if (inb(x,y)) mat[idx(x,y)]=ACID; acid[idx(x,y)]=1; }
+}
+
+/* ---------- Loop ---------- */
+let lastT=performance.now(), acc=0, fpsAcc=0, fpsCnt=0;
+const fpsEl=document.getElementById("fps");
+function loop(t){
+  const dt=t-lastT; lastT=t;
+  fpsCnt++; fpsAcc+=dt;
+  if (fpsAcc>=500){ fpsEl.textContent=Math.round(1000/(fpsAcc/fpsCnt)); fpsCnt=0; fpsAcc=0; }
+  if (playing){
+    for (let s=0;s<speed;s++){ tick(); if (frame%40===0 && s===speed-1) break; }
+  }
+  render();
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener("resize",()=>{ resize(); });
+window.addEventListener("orientationchange",()=>{ resize(); });
+resize();
+selectMat(SAND);
+runDemo();
+render();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
