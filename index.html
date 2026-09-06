@@ -155,6 +155,7 @@ const off = document.createElement("canvas");
 const octx = off.getContext("2d", {alpha:false});
 const ghost = document.getElementById("ghost");
 let W=0, H=0, SCALE=1;
+let _prevW=0, _prevH=0;   // track last allocated size so resize() stays idempotent
 
 let mat, moved, hyd, acid, noise;
 let cur = SAND;
@@ -190,12 +191,18 @@ function resize(){
   cv.style.width = (W*SCALE)+"px";
   cv.style.height = (H*SCALE)+"px";
 
-  mat   = new Int8Array(W*H);
-  moved = new Uint8Array(W*H);
-  hyd   = new Float32Array(W*H);
-  acid  = new Float32Array(W*H);
-  noise = new Float32Array(W*H);
-  for (let i=0;i<W*H;i++) noise[i]=rnd();
+  // Only (re)allocate the grids when the actual cell count changes. Browsers fire
+  // a synthetic "resize" right after load, which used to wipe the freshly-drawn
+  // demo scene to an all-empty grid. Resize() is now idempotent for the same size.
+  if (W !== _prevW || H !== _prevH){
+    mat   = new Int8Array(W*H);
+    moved = new Uint8Array(W*H);
+    hyd   = new Float32Array(W*H);
+    acid  = new Float32Array(W*H);
+    noise = new Float32Array(W*H);
+    for (let i=0;i<W*H;i++) noise[i]=rnd();
+    _prevW=W; _prevH=H;
+  }
 }
 
 function idx(x,y){ return y*W+x; }
