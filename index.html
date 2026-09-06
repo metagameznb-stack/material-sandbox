@@ -192,8 +192,9 @@ function resize(){
   cv.style.height = (H*SCALE)+"px";
 
   // Only (re)allocate the grids when the actual cell count changes. Browsers fire
-  // a synthetic "resize" right after load, which used to wipe the freshly-drawn
-  // demo scene to an all-empty grid. Resize() is now idempotent for the same size.
+  // a synthetic "resize" right after load (and mobile Safari again on scroll/URL-bar
+  // animation), which used to wipe the freshly-drawn demo scene to an all-empty grid.
+  // On a real size change we also rebuild the demo so the scene always fills the canvas.
   if (W !== _prevW || H !== _prevH){
     mat   = new Int8Array(W*H);
     moved = new Uint8Array(W*H);
@@ -202,6 +203,7 @@ function resize(){
     noise = new Float32Array(W*H);
     for (let i=0;i<W*H;i++) noise[i]=rnd();
     _prevW=W; _prevH=H;
+    runDemo();
   }
 }
 
@@ -484,7 +486,13 @@ document.addEventListener("keydown",e=>{
 });
 
 /* ---------- Demo scene ---------- */
+// Deterministic demo RNG so re-running the demo on a size change rebuilds
+// the same scene instead of depending on the global (mutated) RNG state.
 function runDemo(){
+  var s = 2463534242 >>> 0;
+  function drnd(){ s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }
+  var rndiLocal = function(a,b){ return a + Math.floor(drnd()*(b-a+1)); };
+  var rnd = function(){ return drnd(); };
   mat.fill(0); hyd.fill(0); acid.fill(0);
   const baseY=H-8;
   for (let x=Math.floor(W*0.25); x<=Math.floor(W*0.75); x++){ mat[idx(x,baseY)]=WALL; }
@@ -492,14 +500,14 @@ function runDemo(){
   for (let x=Math.floor(W*0.26); x<Math.floor(W*0.75); x++)
     for (let y=baseY-13; y<=baseY-2; y++){ if (rnd()<0.85) mat[idx(x,y)]=WATER; }
   for (let k=0;k<160;k++){
-    const x=Math.floor(W*0.12)+rndi(-4,4), y=Math.floor(H*0.2)+rndi(-2,6);
+    const x=Math.floor(W*0.12)+rndiLocal(-4,4), y=Math.floor(H*0.2)+rndiLocal(-2,6);
     if (inb(x,y)&&mat[idx(x,y)]===EMPTY) mat[idx(x,y)]=SAND;
   }
   for (let k=0;k<140;k++){
-    const x=Math.floor(W*0.78)+rndi(-5,4), y=Math.floor(H*0.25)+rndi(-2,6);
+    const x=Math.floor(W*0.78)+rndiLocal(-5,4), y=Math.floor(H*0.25)+rndiLocal(-2,6);
     if (inb(x,y)&&mat[idx(x,y)]===EMPTY) mat[idx(x,y)]=CONCRETE;
   }
-  for (let k=0;k<30;k++){ const x=Math.floor(W*0.5)+rndi(-3,3), y=Math.floor(H*0.12)+rndi(0,3); if (inb(x,y)) mat[idx(x,y)]=ACID; acid[idx(x,y)]=1; }
+  for (let k=0;k<30;k++){ const x=Math.floor(W*0.5)+rndiLocal(-3,3), y=Math.floor(H*0.12)+rndiLocal(0,3); if (inb(x,y)) mat[idx(x,y)]=ACID; acid[idx(x,y)]=1; }
 }
 
 /* ---------- Loop ---------- */
