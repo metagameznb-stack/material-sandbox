@@ -361,12 +361,12 @@ function render(){
   octx.putImageData(imgData,0,0);
   ctx.imageSmoothingEnabled=false;
   ctx.fillStyle="#050608"; ctx.fillRect(0,0,cv.width,cv.height);
-  const grad=ctx.createLinearGradient(0,0,0,cv.height);
-  grad.addColorStop(0,"#0c0f15"); grad.addColorStop(1,"#070910");
   ctx.drawImage(off,0,0,cv.width,cv.height);
-  ctx.globalCompositeOperation="source-atop";
-  ctx.fillStyle=grad; ctx.fillRect(0,0,cv.width,cv.height);
-  ctx.globalCompositeOperation="source-over";
+  // subtle vignette: only lightly darken the edges so materials stay vivid
+  const v=ctx.createRadialGradient(cv.width/2,cv.height/2,cv.height*0.3,cv.width/2,cv.height/2,cv.width*0.72);
+  v.addColorStop(0,"rgba(0,0,0,0)");
+  v.addColorStop(1,"rgba(0,0,0,0.30)");
+  ctx.fillStyle=v; ctx.fillRect(0,0,cv.width,cv.height);
 }
 
 /* ---------- Interaction ---------- */
